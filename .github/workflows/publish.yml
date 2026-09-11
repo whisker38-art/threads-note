@@ -1,0 +1,57 @@
+name: 쓰레드 자동 발행
+
+on:
+  schedule:
+    # GitHub 은 UTC 기준. 한국시간(KST) = UTC + 9시간
+    - cron: '30 22 * * *'   # KST 07:30  출근길
+    - cron: '10  3 * * *'   # KST 12:10  점심
+    - cron: '30  9 * * *'   # KST 18:30  퇴근길
+    - cron: '0  12 * * *'   # KST 21:00  저녁
+    - cron: '0  14 * * *'   # KST 23:00  자기 전
+  workflow_dispatch:
+    inputs:
+      dry:
+        description: '실제로 올리지 않고 확인만'
+        type: boolean
+        default: true
+
+permissions:
+  contents: write            # 발행 후 queue.txt 를 되돌려 커밋하기 위해 필요
+
+concurrency:
+  group: threads-publish     # 두 개가 동시에 돌아 같은 글이 두 번 나가는 것 방지
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 발행
+        env:
+          THREADS_ACCESS_TOKEN: ${{ secrets.THREADS_ACCESS_TOKEN }}
+          THREADS_USER_ID: ${{ secrets.THREADS_USER_ID }}
+        run: |
+          if [ "${{ inputs.dry }}" = "true" ]; then
+            node run_queue.mjs --dry
+          else
+            node run_queue.mjs
+          fi
+
+      - name: 큐 상태 커밋
+        if: ${{ inputs.dry != true }}
+        run: |
+          if [ -n "$(git status --porcelain queue.txt published.txt logs)" ]; then
+            git config user.name  "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add queue.txt published.txt logs 2>/dev/null || true
+            git commit -m "발행 완료: 큐 갱신 [skip ci]"
+            git push
+          else
+            echo "변경 없음 — 커밋하지 않습니다"
+          fi

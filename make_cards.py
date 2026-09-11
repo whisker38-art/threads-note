@@ -214,7 +214,9 @@ def main():
     path = a.src if os.path.isabs(a.src) else os.path.join(ROOT, a.src)
     raw = open(path, encoding="utf-8").read().replace("\ufeff", "")
     name = os.path.splitext(os.path.basename(path))[0]
-    outdir = os.path.join(ROOT, "images", name)
+    # 폴더 이름은 앞 숫자만 쓴다 — raw 주소에 한글이 들어가면 인코딩이 지저분해진다
+    m = re.match(r"^(\d+)", name)
+    outdir = os.path.join(ROOT, "images", m.group(1) if m else name)
     os.makedirs(outdir, exist_ok=True)
 
     blocks = split_blocks(raw)
