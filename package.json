@@ -1,0 +1,11 @@
+{
+  "name": "threads-automation",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Threads API 자동 게시",
+  "scripts": {
+    "me": "node threads_publish.mjs --me",
+    "post": "node threads_publish.mjs"
+  }
+}
