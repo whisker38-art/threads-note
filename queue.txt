@@ -1,9 +1,5 @@
 # 위에서부터 한 편씩 발행된다. 순서 바꾸고 싶으면 줄을 옮기면 됨.
-# 발행된 줄은 자동으로 published.txt 로 옮겨진다.
+# 2026-09-13 분은 작업 스케줄러에 따로 예약돼 있어 여기서 뺐다.
 
-posts/01_소개.txt
-posts/09_월십만원.txt
-posts/03_창고.txt
-posts/07_요령.txt
 posts/04_본전.txt
-posts/06_내것.txt
+posts/01_소개.txt
