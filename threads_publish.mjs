@@ -99,6 +99,19 @@ function logPost(entry) {
   appendFileSync(join(dir, 'posts.jsonl'), JSON.stringify(entry) + '\n', 'utf8');
 }
 
+const norm = (s) => (s || '').replace(/\s+/g, ' ').trim();
+
+// 최근 글 중 본문이 똑같은 게 있으면 돌려준다.
+// 발행 기록 저장이 실패해도 같은 글이 두 번 나가지 않게 하는 마지막 방어선 (2026-09-13 중복 사고)
+async function findRecentDuplicate(uid, token, text, hours = 72) {
+  const r = await call('GET', `/${uid}/threads`, {
+    fields: 'id,text,timestamp,permalink', limit: '50', access_token: token,
+  });
+  const since = Date.now() - hours * 3600e3;
+  const want = norm(text);
+  return (r.data || []).find((p) => Date.parse(p.timestamp) >= since && norm(p.text) === want) || null;
+}
+
 export async function publish({ token, userId, text, images = [], replyTo, dry = false }) {
   const uid = userId || (await getMe(token)).id;
   const type = images.length > 1 ? 'CAROUSEL' : images.length === 1 ? 'IMAGE' : 'TEXT';
@@ -107,6 +120,15 @@ export async function publish({ token, userId, text, images = [], replyTo, dry =
   console.log(`  종류   : ${type}${images.length ? ` (이미지 ${images.length}장)` : ''}`);
   console.log(`  글자수 : ${text.length}자`);
   console.log(`  본문   : ${text.slice(0, 60).replace(/\n/g, ' ')}${text.length > 60 ? '…' : ''}`);
+
+  if (!replyTo) {
+    const dup = await findRecentDuplicate(uid, token, text);
+    if (dup) {
+      console.log(`\n⛔ 같은 글이 이미 올라가 있어 발행하지 않았습니다 (${dup.timestamp})`);
+      console.log(`   ${dup.permalink ?? dup.id}\n`);
+      return dup.id;
+    }
+  }
 
   if (dry) { console.log('\n🟡 --dry 라서 실제 게시는 하지 않았습니다.\n'); return null; }
 

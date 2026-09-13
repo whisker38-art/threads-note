@@ -1,0 +1,63 @@
+# 예약 발행 워크플로 — 현재 꺼져 있음 (2026-09-13 중복 발행 사고 후 중단)
+#
+# 다시 켜려면 이 파일을 .github/workflows/scheduled.yml 로 복사해서 푸시한다.
+#
+# 2026-09-13 사고 원인과 수정
+#   원인: 기록 커밋 단계에서 `git add schedule.json logs` 를 했는데 logs/ 는 .gitignore 대상이라
+#         git add 가 exit 1 로 실패 → schedule.json 에 발행 표시가 저장되지 않음
+#         → 다음 실행이 같은 글을 "안 올린 글"로 보고 다시 발행
+#   수정: ① schedule.json 만 add 한다 (logs 는 커밋하지 않음)
+#         ② threads_publish.mjs 가 발행 직전 최근 72시간 글과 본문을 대조해
+#            같은 글이면 발행하지 않는다 — 기록 저장이 또 실패해도 중복은 안 나감
+
+name: 쓰레드 예약 발행
+
+on:
+  schedule:
+    - cron: '0,30 * * * *'
+  workflow_dispatch:
+    inputs:
+      dry:
+        description: '실제로 올리지 않고 확인만'
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: threads-scheduled
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: 시간 된 원고 발행
+        env:
+          THREADS_ACCESS_TOKEN: ${{ secrets.THREADS_ACCESS_TOKEN }}
+          THREADS_USER_ID: ${{ secrets.THREADS_USER_ID }}
+        run: |
+          if [ "${{ inputs.dry }}" = "true" ]; then
+            node run_schedule.mjs --dry
+          else
+            node run_schedule.mjs
+          fi
+
+      - name: 발행 기록 커밋
+        if: ${{ inputs.dry != true }}
+        run: |
+          if [ -n "$(git status --porcelain schedule.json)" ]; then
+            git config user.name  "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add schedule.json
+            git commit -m "예약 발행 기록 [skip ci]"
+            git push
+          else
+            echo "변경 없음"
+          fi
